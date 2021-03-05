@@ -3,11 +3,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import os
+
+use_cuda = False #not os.environ["CUDA_VISIBLE_DEVICES"]
+
 def create_var(tensor, requires_grad=None):
     if requires_grad is None:
-        return Variable(tensor).cuda()
+        t = Variable(tensor)
+        return t.cuda() if use_cuda else t
     else:
-        return Variable(tensor, requires_grad=requires_grad).cuda()
+        t = Variable(tensor, requires_grad=requires_grad)
+        return t.cuda() if use_cuda else t
 
 def index_select_ND(source, dim, index):
     index_size = index.size()
