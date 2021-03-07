@@ -1,2 +1,6 @@
 *.pyc
 processed/
+data
+.vscode
+.idea
+*.egg-info
