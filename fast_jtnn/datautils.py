@@ -105,8 +105,11 @@ class MolTreeDataset(Dataset):
 
 def tensorize(tree_batch, vocab, assm=True):
     set_batch_nodeID(tree_batch, vocab)
-    smiles_batch = [tree.smiles for tree in tree_batch]
-    jtenc_holder,mess_dict = JTNNEncoder.tensorize(tree_batch)
+
+    smiles_batch = [tree.smiles for tree in tree_batch if not tree.out_of_vocab]
+    tree_batch_good = [tree for tree in tree_batch if not tree.out_of_vocab]
+
+    jtenc_holder,mess_dict = JTNNEncoder.tensorize(tree_batch_good)
     jtenc_holder = jtenc_holder
     mpn_holder = MPN.tensorize(smiles_batch)
 
@@ -124,7 +127,6 @@ def tensorize(tree_batch, vocab, assm=True):
 
     jtmpn_holder = JTMPN.tensorize(cands, mess_dict)
     batch_idx = torch.LongTensor(batch_idx)
-
     return tree_batch, jtenc_holder, mpn_holder, (jtmpn_holder,batch_idx)
 
 def set_batch_nodeID(mol_batch, vocab):
@@ -132,5 +134,9 @@ def set_batch_nodeID(mol_batch, vocab):
     for mol_tree in mol_batch:
         for node in mol_tree.nodes:
             node.idx = tot
-            node.wid = vocab.get_index(node.smiles)
+
+            try:
+                node.wid = vocab.get_index(node.smiles)
+            except KeyError:
+                mol_tree.out_of_vocab = True
             tot += 1
