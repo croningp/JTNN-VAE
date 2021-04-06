@@ -14,28 +14,30 @@ from fast_jtnn import *
 
 def main_vae_train(
     train,
-             vocab,
-             save_dir,
-             load_epoch=0,
-             hidden_size=450,
-             batch_size=32,
-             latent_size=56,
-             depthT=20,
-             depthG=3,
-             lr=1e-3,
-             clip_norm=50.0,
-             beta=0.0,
-             step_beta=0.002,
-             max_beta=1.0,
-             warmup=40000,
-             epoch=20,
-             anneal_rate=0.9,
-             anneal_iter=40000, 
-             kl_anneal_iter=2000,
-             print_iter=50, 
-             save_iter=5000):
+    vocab,
+    save_dir,
+    load_epoch=0,
+    hidden_size=450,
+    batch_size=32,
+    latent_size=56,
+    depthT=20,
+    depthG=3,
+    lr=1e-3,
+    clip_norm=50.0,
+    beta=0.0,
+    step_beta=0.002,
+    max_beta=1.0,
+    warmup=40000,
+    epoch=20,
+    anneal_rate=0.9,
+    anneal_iter=40000,
+    kl_anneal_iter=2000,
+    print_iter=50,
+    save_iter=5000,
+    num_workers=4,
+):
 
-    vocab = [x.strip("\r\n ") for x in open(vocab)] 
+    vocab = [x.strip("\r\n ") for x in open(vocab)]
     vocab = Vocab(vocab)
 
     model = JTNNVAE(vocab, hidden_size, latent_size, depthT, depthG)
@@ -70,7 +72,7 @@ def main_vae_train(
     meters = np.zeros(4)
 
     for epoch in range(epoch):
-        loader = MolTreeFolder(train, vocab, batch_size, num_workers=4)
+        loader = MolTreeFolder(train, vocab, batch_size, num_workers=num_workers)
         for batch in loader:
             total_step += 1
             try:
@@ -121,7 +123,7 @@ def main_vae_train(
 
 
 if __name__ == "__main__":
-    lg = rdkit.RDLogger.logger() 
+    lg = rdkit.RDLogger.logger()
     lg.setLevel(rdkit.RDLogger.CRITICAL)
 
     parser = argparse.ArgumentParser()
@@ -169,10 +171,10 @@ if __name__ == "__main__":
         args.step_beta,
         args.max_beta,
         args.warmup,
-        args.epoch, 
+        args.epoch,
         args.anneal_rate,
-        args.anneal_iter, 
+        args.anneal_iter,
         args.kl_anneal_iter,
-        args.print_iter, 
+        args.print_iter,
         args.save_iter,
     )
