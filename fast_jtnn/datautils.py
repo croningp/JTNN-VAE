@@ -40,7 +40,7 @@ class PairTreeFolder(object):
             with open(fn) as f:
                 data = pickle.load(f)
 
-            if self.shuffle: 
+            if self.shuffle:
                 random.shuffle(data)  # shuffle data before batch
 
             batches = [
@@ -92,7 +92,7 @@ class MolTreeFolder(object):
             with open(fn, "rb") as f:
                 data = pickle.load(f)
 
-            if self.shuffle: 
+            if self.shuffle:
                 random.shuffle(data)  # shuffle data before batch
 
             batches = [
@@ -125,7 +125,7 @@ class PairTreeDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, idx):
         batch0, batch1 = list(zip(*self.data[idx]))
         return tensorize(batch0, self.vocab, assm=False), tensorize(
@@ -141,7 +141,7 @@ class MolTreeDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, idx):
         return tensorize(self.data[idx], self.vocab, assm=self.assm)
 
@@ -177,11 +177,12 @@ def tensorize(tree_batch, vocab, assm=True):
 def set_batch_nodeID(mol_batch, vocab):
     tot = 0
     for mol_tree in mol_batch:
-        for node in mol_tree.nodes:
-            node.idx = tot
-
+        for i, node in enumerate(mol_tree.nodes):
             try:
                 node.wid = vocab.get_index(node.smiles)
+                node.idx = tot + i
             except KeyError:
                 mol_tree.out_of_vocab = True
-            tot += 1
+                break
+        else:
+            tot += i + 1
