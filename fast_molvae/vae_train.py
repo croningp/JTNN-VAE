@@ -80,8 +80,10 @@ def main_vae_train(
                 nn.utils.clip_grad_norm_(model.parameters(), clip_norm)
                 optimizer.step()
             except Exception as e:
-                print(e)
-                continue
+                logging.exception(e)
+                # raise e
+                # print(e)
+                # continue
 
             meters = meters + np.array([kl_div, wacc * 100, tacc * 100, sacc * 100])
 

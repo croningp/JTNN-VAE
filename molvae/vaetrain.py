@@ -85,8 +85,7 @@ for epoch in range(MAX_EPOCH):
             loss.backward()
             optimizer.step()
         except Exception as e:
-            print(e)
-            continue
+            raise e
 
         word_acc += wacc
         topo_acc += tacc
