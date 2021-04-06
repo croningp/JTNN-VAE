@@ -1,79 +1,74 @@
 import os
+from typing import List
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-from pathlib import Path
+
 import torch
-from fast_jtnn import JTNNVAE, Vocab, MolTree
-from fast_jtnn.datautils import tensorize
 from tqdm import tqdm
+
+from fast_jtnn import JTNNVAE, MolTree, Vocab
+from fast_jtnn.datautils import tensorize
 
 cpu = torch.device("cpu")
 import numpy as np
 
 
-def fingerprint(
-    smiles_list,
-    model_path=Path(__file__).absolute.parents[1]
-    / "data"
-    / "dario"
-    / "vae_model"
-    / "model.iter-2000",
-    vocab_path=Path(__file__).absolute.parents[1] / "data" / "dario" / "vocab3.txt",
-):
+class FingerprintCalculator:
+    def __init__(
+        self,
+        model_path: str,
+        vocab_path: str,
+        latent_size: int = 56,
+        hidden_size=450,
+        depthT=20,
+        depthG=20,
+    ):
+        self.model_path = model_path
+        self.vocab_path = vocab_path
+        self.latent_size = latent_size
+        self.hidden_size = hidden_size
+        self.depthT = depthT
+        self.depthG = depthG
 
-    latent_size = 56
+        with open(self.vocab_path, "r") as vocab_file:
+            self.vocab = Vocab([x.strip() for x in vocab_file])
 
-    vocab = [x.strip("\r\n ") for x in open(vocab_path, "r")]
-    vocab = Vocab(vocab)
-
-    model = JTNNVAE(
-        vocab, hidden_size=450, latent_size=latent_size, depthT=20, depthG=20
-    )
-    model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu")))
-    model = model.to(cpu)
-
-    fps = []
-    all_out_of_vocab = []
-    fp_dic = {}
-
-    for chunk in tqdm(range(0, len(smiles_list), 200)):
-        tree_batch = [MolTree(s) for s in smiles_list[chunk : chunk + 200]]
-
-        tree_batch, jtenc_holder, mpn_holder = tensorize(
-            tree_batch, model.vocab, assm=False
+        self.model = JTNNVAE(
+            self.vocab,
+            hidden_size=self.hidden_size,
+            latent_size=self.latent_size,
+            depthT=self.depthT,
+            depthG=self.depthG,
         )
 
-        indexes_out_of_vocab = [
-            i for i, tree in enumerate(tree_batch) if tree.out_of_vocab
-        ]
+        self.model.load_state_dict(
+            torch.load(self.model_path, map_location=torch.device("cpu"))
+        )
 
-        tree_vecs, _, mol_vecs = model.encode(jtenc_holder, mpn_holder)
-        ts = model.T_mean(tree_vecs)
-        gs = model.G_mean(mol_vecs)
+    def __call__(self, smiles_list: List[str]):
+        fps = []
+        in_vocab = np.ones_like(smiles_list, dtype=bool)
 
-        final = torch.cat([ts, gs], dim=1).data.cpu().numpy()
-        fps.extend(final)
+        for chunk in tqdm(range(0, len(smiles_list), 200)):
+            tree_batch = [MolTree(s) for s in smiles_list[chunk : chunk + 200]]
 
-        out_of_vocab = [x + chunk for x in indexes_out_of_vocab]
-        all_out_of_vocab += out_of_vocab
-
-        torch.cuda.empty_cache()
-
-    vect_ix = 0
-    for ix, rgt in enumerate(smiles_list):
-
-        # if mol was out of vocab, fp is an all-zeros vector.
-        if ix in all_out_of_vocab:
-            fp_dic[rgt] = np.zeros(
-                latent_size,
+            tree_batch, jtenc_holder, mpn_holder = tensorize(
+                tree_batch, self.model.vocab, assm=False
             )
-            continue
 
-        vect = fps[vect_ix]
-        fp_dic[rgt] = vect
-        vect_ix += 1
+            in_vocab[
+                [i + chunk for i, tree in enumerate(tree_batch) if tree.out_of_vocab]
+            ] = False
 
-    print(len(fps))
+            tree_vecs, _, mol_vecs = self.model.encode(jtenc_holder, mpn_holder)
+            ts = self.model.T_mean(tree_vecs)
+            gs = self.model.G_mean(mol_vecs)
 
-    return fp_dic
+            final = torch.cat([ts, gs], dim=1).data.cpu().numpy()
+            fps.append(final)
+
+        fps = np.concatenate(fps, axis=0)
+        result = np.zeros((len(smiles_list), self.latent_size))
+        result[in_vocab, :] = fps
+        return result
