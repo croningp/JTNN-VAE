@@ -5,37 +5,128 @@ import torch.nn.functional as F
 from .nnutils import *
 from .chemutils import get_mol
 
-ELEM_LIST = ['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar','K',
-            'Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr','Rb',
-            'Sr','Y','Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I','Xe','Cs',
-            'Ba','La','Ce','Pr','Nd','Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb','Lu','Hf','Ta',
-            'W','Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi']
+ELEM_LIST = [
+    "H",
+    "He",
+    "Li",
+    "Be",
+    "B",
+    "C",
+    "N",
+    "O",
+    "F",
+    "Ne",
+    "Na",
+    "Mg",
+    "Al",
+    "Si",
+    "P",
+    "S",
+    "Cl",
+    "Ar",
+    "K",
+    "Ca",
+    "Sc",
+    "Ti",
+    "V",
+    "Cr",
+    "Mn",
+    "Fe",
+    "Co",
+    "Ni",
+    "Cu",
+    "Zn",
+    "Ga",
+    "Ge",
+    "As",
+    "Se",
+    "Br",
+    "Kr",
+    "Rb",
+    "Sr",
+    "Y",
+    "Zr",
+    "Nb",
+    "Mo",
+    "Tc",
+    "Ru",
+    "Rh",
+    "Pd",
+    "Ag",
+    "Cd",
+    "In",
+    "Sn",
+    "Sb",
+    "Te",
+    "I",
+    "Xe",
+    "Cs",
+    "Ba",
+    "La",
+    "Ce",
+    "Pr",
+    "Nd",
+    "Pm",
+    "Sm",
+    "Eu",
+    "Gd",
+    "Tb",
+    "Dy",
+    "Ho",
+    "Er",
+    "Tm",
+    "Yb",
+    "Lu",
+    "Hf",
+    "Ta",
+    "W",
+    "Re",
+    "Os",
+    "Ir",
+    "Pt",
+    "Au",
+    "Hg",
+    "Tl",
+    "Pb",
+    "Bi",
+]
 
 ATOM_FDIM = len(ELEM_LIST) + 6 + 5 + 4 + 1
 BOND_FDIM = 5 + 6
 MAX_NB = 6
+
 
 def onek_encoding_unk(x, allowable_set):
     if x not in allowable_set:
         x = allowable_set[-1]
     return [x == s for s in allowable_set]
 
+
 def atom_features(atom):
-    return torch.Tensor(onek_encoding_unk(atom.GetSymbol(), ELEM_LIST) 
-            + onek_encoding_unk(atom.GetDegree(), [0,1,2,3,4,5]) 
-            + onek_encoding_unk(atom.GetFormalCharge(), [-1,-2,1,2,0])
-            + onek_encoding_unk(int(atom.GetChiralTag()), [0,1,2,3])
-            + [atom.GetIsAromatic()])
+    return torch.Tensor(
+        onek_encoding_unk(atom.GetSymbol(), ELEM_LIST)
+        + onek_encoding_unk(atom.GetDegree(), [0, 1, 2, 3, 4, 5])
+        + onek_encoding_unk(atom.GetFormalCharge(), [-1, -2, 1, 2, 0])
+        + onek_encoding_unk(int(atom.GetChiralTag()), [0, 1, 2, 3])
+        + [atom.GetIsAromatic()]
+    )
+
 
 def bond_features(bond):
     bt = bond.GetBondType()
     stereo = int(bond.GetStereo())
-    fbond = [bt == Chem.rdchem.BondType.SINGLE, bt == Chem.rdchem.BondType.DOUBLE, bt == Chem.rdchem.BondType.TRIPLE, bt == Chem.rdchem.BondType.AROMATIC, bond.IsInRing()]
-    fstereo = onek_encoding_unk(stereo, [0,1,2,3,4,5])
+    fbond = [
+        bt == Chem.rdchem.BondType.SINGLE,
+        bt == Chem.rdchem.BondType.DOUBLE,
+        bt == Chem.rdchem.BondType.TRIPLE,
+        bt == Chem.rdchem.BondType.AROMATIC,
+        bond.IsInRing(),
+    ]
+    fstereo = onek_encoding_unk(stereo, [0, 1, 2, 3, 4, 5])
     return torch.Tensor(fbond + fstereo)
 
-class MPN(nn.Module):
 
+class MPN(nn.Module):
     def __init__(self, hidden_size, depth):
         super(MPN, self).__init__()
         self.hidden_size = hidden_size
@@ -65,29 +156,29 @@ class MPN(nn.Module):
         ainput = torch.cat([fatoms, nei_message], dim=1)
         atom_hiddens = F.relu(self.W_o(ainput))
 
-        max_len = max([x for _,x in scope])
+        max_len = max([x for _, x in scope])
         batch_vecs = []
-        for st,le in scope:
+        for st, le in scope:
             cur_vecs = atom_hiddens[st : st + le].mean(dim=0)
-            batch_vecs.append( cur_vecs )
+            batch_vecs.append(cur_vecs)
 
         mol_vecs = torch.stack(batch_vecs, dim=0)
-        return mol_vecs 
+        return mol_vecs
 
     @staticmethod
     def tensorize(mol_batch):
         padding = torch.zeros(ATOM_FDIM + BOND_FDIM)
-        fatoms,fbonds = [],[padding] #Ensure bond is 1-indexed
-        in_bonds,all_bonds = [],[(-1,-1)] #Ensure bond is 1-indexed
+        fatoms, fbonds = [], [padding]  # Ensure bond is 1-indexed
+        in_bonds, all_bonds = [], [(-1, -1)]  # Ensure bond is 1-indexed
         scope = []
         total_atoms = 0
 
         for smiles in mol_batch:
             mol = get_mol(smiles)
-            #mol = Chem.MolFromSmiles(smiles)
+            # mol = Chem.MolFromSmiles(smiles)
             n_atoms = mol.GetNumAtoms()
             for atom in mol.GetAtoms():
-                fatoms.append( atom_features(atom) )
+                fatoms.append(atom_features(atom))
                 in_bonds.append([])
 
             for bond in mol.GetBonds():
@@ -96,34 +187,33 @@ class MPN(nn.Module):
                 x = a1.GetIdx() + total_atoms
                 y = a2.GetIdx() + total_atoms
 
-                b = len(all_bonds) 
-                all_bonds.append((x,y))
-                fbonds.append( torch.cat([fatoms[x], bond_features(bond)], 0) )
+                b = len(all_bonds)
+                all_bonds.append((x, y))
+                fbonds.append(torch.cat([fatoms[x], bond_features(bond)], 0))
                 in_bonds[y].append(b)
 
                 b = len(all_bonds)
-                all_bonds.append((y,x))
-                fbonds.append( torch.cat([fatoms[y], bond_features(bond)], 0) )
+                all_bonds.append((y, x))
+                fbonds.append(torch.cat([fatoms[y], bond_features(bond)], 0))
                 in_bonds[x].append(b)
-            
-            scope.append((total_atoms,n_atoms))
+
+            scope.append((total_atoms, n_atoms))
             total_atoms += n_atoms
 
         total_bonds = len(all_bonds)
         fatoms = torch.stack(fatoms, 0)
         fbonds = torch.stack(fbonds, 0)
-        agraph = torch.zeros(total_atoms,MAX_NB).long()
-        bgraph = torch.zeros(total_bonds,MAX_NB).long()
+        agraph = torch.zeros(total_atoms, MAX_NB).long()
+        bgraph = torch.zeros(total_bonds, MAX_NB).long()
 
         for a in range(total_atoms):
-            for i,b in enumerate(in_bonds[a]):
-                agraph[a,i] = b
+            for i, b in enumerate(in_bonds[a]):
+                agraph[a, i] = b
 
         for b1 in range(1, total_bonds):
-            x,y = all_bonds[b1]
-            for i,b2 in enumerate(in_bonds[x]):
+            x, y = all_bonds[b1]
+            for i, b2 in enumerate(in_bonds[x]):
                 if all_bonds[b2][0] != y:
-                    bgraph[b1,i] = b2
+                    bgraph[b1, i] = b2
 
         return (fatoms, fbonds, agraph, bgraph, scope)
-

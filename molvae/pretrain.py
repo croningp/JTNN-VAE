@@ -1,18 +1,15 @@
+import sys
+from optparse import OptionParser
+
+import rdkit
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
-
-import math, random, sys
-from optparse import OptionParser
-from collections import deque
-
 from jtnn import *
-import rdkit
+from torch.utils.data import DataLoader
 
-lg = rdkit.RDLogger.logger() 
+lg = rdkit.RDLogger.logger()
 lg.setLevel(rdkit.RDLogger.CRITICAL)
 
 parser = OptionParser()
@@ -23,9 +20,9 @@ parser.add_option("-b", "--batch", dest="batch_size", default=40)
 parser.add_option("-w", "--hidden", dest="hidden_size", default=200)
 parser.add_option("-l", "--latent", dest="latent_size", default=56)
 parser.add_option("-d", "--depth", dest="depth", default=3)
-opts,args = parser.parse_args()
-   
-vocab = [x.strip("\r\n ") for x in open(opts.vocab_path)] 
+opts, args = parser.parse_args()
+
+vocab = [x.strip("\r\n ") for x in open(opts.vocab_path)]
 vocab = Vocab(vocab)
 
 batch_size = int(opts.batch_size)
@@ -54,9 +51,16 @@ MAX_EPOCH = 3
 PRINT_ITER = 20
 
 for epoch in range(MAX_EPOCH):
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=lambda x:x, drop_last=True)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        collate_fn=lambda x: x,
+        drop_last=True,
+    )
 
-    word_acc,topo_acc,assm_acc,steo_acc = 0,0,0,0
+    word_acc, topo_acc, assm_acc, steo_acc = 0, 0, 0, 0
 
     for it, batch in enumerate(dataloader):
         for mol_tree in batch:
@@ -81,11 +85,13 @@ for epoch in range(MAX_EPOCH):
             assm_acc = assm_acc / PRINT_ITER * 100
             steo_acc = steo_acc / PRINT_ITER * 100
 
-            print("KL: %.1f, Word: %.2f, Topo: %.2f, Assm: %.2f, Steo: %.2f" % (kl_div, word_acc, topo_acc, assm_acc, steo_acc))
-            word_acc,topo_acc,assm_acc,steo_acc = 0,0,0,0
+            print(
+                "KL: %.1f, Word: %.2f, Topo: %.2f, Assm: %.2f, Steo: %.2f"
+                % (kl_div, word_acc, topo_acc, assm_acc, steo_acc)
+            )
+            word_acc, topo_acc, assm_acc, steo_acc = 0, 0, 0, 0
             sys.stdout.flush()
 
     scheduler.step()
     print("learning rate: %.6f" % scheduler.get_lr()[0])
     torch.save(model.state_dict(), opts.save_path + "/model.iter-" + str(epoch))
-

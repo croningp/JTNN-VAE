@@ -3,6 +3,7 @@ import pickle as pickle
 from fast_jtnn import *
 import rdkit
 
+
 def tensorize(smiles, assm=True):
     mol_tree = MolTree(smiles)
     mol_tree.recover()
@@ -18,26 +19,27 @@ def tensorize(smiles, assm=True):
 
     return mol_tree
 
+
 def create_tensor_pickle(train_path, output_path):
-    lg = rdkit.RDLogger.logger() 
+    lg = rdkit.RDLogger.logger()
     lg.setLevel(rdkit.RDLogger.CRITICAL)
-    
+
     with open(train_path) as f:
         data = [line.strip("\r\n ").split()[0] for line in f]
-    print('Input File read')
-    
+    print("Input File read")
+
     all_data = list(map(tensorize, data))
 
-    with open(output_path, 'wb') as f:
+    with open(output_path, "wb") as f:
         pickle.dump(all_data, f, pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
-    lg = rdkit.RDLogger.logger() 
+    lg = rdkit.RDLogger.logger()
     lg.setLevel(rdkit.RDLogger.CRITICAL)
 
     parser = OptionParser()
     parser.add_option("-t", "--train", dest="train_path")
     opts = parser.parse_args()
 
-    create_tensor_pickle(opts.train_path, 'tensors-0.pkl')
+    create_tensor_pickle(opts.train_path, "tensors-0.pkl")
