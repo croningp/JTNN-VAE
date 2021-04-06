@@ -77,7 +77,7 @@ class MolTreeFolder(object):
         replicate=None,
     ):
         self.data_folder = data_folder
-        self.data_files = [fn for fn in os.listdir(data_folder)]
+        self.data_files = glob.glob(path.join(data_folder, "*.p"))
         self.batch_size = batch_size
         self.vocab = vocab
         self.num_workers = num_workers
