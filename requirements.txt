@@ -1,3 +1,4 @@
-rdkit
 numpy
+rdkit
+scipy
 torch
